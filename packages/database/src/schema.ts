@@ -1,0 +1,15 @@
+import { index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uuid, vector } from "drizzle-orm/pg-core";
+
+export const projectStatus = pgEnum("project_status", ["active", "paused", "archived"]);
+export const memoryType = pgEnum("memory_type", ["decision", "architecture", "fact", "requirement", "issue", "solution", "note", "preference", "context"]);
+export const memorySourceType = pgEnum("memory_source_type", ["manual", "github", "chat", "commit", "pull_request", "issue"]);
+export const taskStatus = pgEnum("task_status", ["todo", "doing", "done"]);
+export const taskPriority = pgEnum("task_priority", ["low", "medium", "high"]);
+export const activityType = pgEnum("activity_type", ["commit", "pull_request", "issue", "memory", "task", "chat"]);
+const timestamps = { createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull() };
+
+export const projects = pgTable("projects", { id: uuid("id").defaultRandom().primaryKey(), name: text("name").notNull(), description: text("description"), techStack: text("tech_stack").array().default([]).notNull(), status: projectStatus("status").default("active").notNull(), ...timestamps });
+export const memories = pgTable("memories", { id: uuid("id").defaultRandom().primaryKey(), projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(), type: memoryType("type").notNull(), title: text("title").notNull(), content: text("content").notNull(), importance: integer("importance").default(5).notNull(), sourceType: memorySourceType("source_type"), sourceReference: text("source_reference"), tags: text("tags").array().default([]).notNull(), ...timestamps }, (table) => [index("memories_project_idx").on(table.projectId), index("memories_type_idx").on(table.type)]);
+export const memoryEmbeddings = pgTable("memory_embeddings", { memoryId: uuid("memory_id").references(() => memories.id, { onDelete: "cascade" }).notNull(), model: text("model").notNull(), embedding: vector("embedding", { dimensions: 1536 }).notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull() }, (table) => [primaryKey({ columns: [table.memoryId, table.model] })]);
+export const tasks = pgTable("tasks", { id: uuid("id").defaultRandom().primaryKey(), projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(), title: text("title").notNull(), description: text("description"), status: taskStatus("status").default("todo").notNull(), priority: taskPriority("priority").default("medium").notNull(), source: text("source"), dueAt: timestamp("due_at", { withTimezone: true }), ...timestamps });
+export const activities = pgTable("activities", { id: uuid("id").defaultRandom().primaryKey(), projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(), type: activityType("type").notNull(), title: text("title").notNull(), metadata: jsonb("metadata").$type<Record<string, unknown>>(), occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull() });
